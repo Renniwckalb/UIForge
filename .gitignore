@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# UI Forge
+/test-results
+
+# Rendu serveur de l'export Web Component (npm run build:export-runtime)
+/.forge

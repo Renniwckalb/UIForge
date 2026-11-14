@@ -1,26 +1,66 @@
 {
-  "name": "test",
+  "name": "ui-forge",
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "vendor:sync": "tsx scripts/vendor-sync.ts",
+    "build:export-runtime": "tsx scripts/build-export-runtime.mts",
+    "predev": "tsx scripts/vendor-sync.ts && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
     "dev": "next dev",
+    "prebuild": "tsx scripts/vendor-sync.ts && tsx scripts/licenses.mts --check && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "verify:export": "tsx scripts/verify-export.mts",
+    "verify:js-export": "tsx scripts/verify-js-export.mts",
+    "licenses:check": "tsx scripts/licenses.mts --check",
+    "licenses:report": "tsx scripts/licenses.mts --write"
   },
   "dependencies": {
+    "@babel/parser": "^8.1.2",
+    "@base-ui/react": "^1.9.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@monaco-editor/react": "^4.7.0",
+    "@number-flow/react": "^0.6.2",
+    "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.1.1",
+    "cn": "^0.5.2",
+    "idb": "^8.0.4",
+    "immer": "^11.2.10",
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.72.0",
+    "monaco-editor": "^0.57.0",
+    "motion": "^14.13.0",
+    "nanoid": "^6.0.2",
     "next": "16.4.6",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.8.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "shadcn": "^4.23.0",
+    "sonner": "^2.0.8",
+    "sucrase": "^3.35.1",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.6.7",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "license-checker-rseidelsohn": "^5.0.1",
+    "playwright": "^1.65.0",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
-  }
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
+  },
+  "license": "MIT",
+  "description": "Studio visuel pour créer, personnaliser et exporter des composants React réutilisables."
 }

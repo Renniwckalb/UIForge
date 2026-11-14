@@ -1,0 +1,47 @@
+{
+  "$comment": "Contrôle des licences (npm run licenses:check). Toute dépendance dont la licence n'est pas dans « allowed » doit avoir ici une exception au nom EXACT et à la licence EXACTE, de statut « acceptée » ; sinon le contrôle échoue (nouveau paquet, licence modifiée, statut « refusée », exception dev présente en production). Les licences de « forbiddenInProduction » font échouer le contrôle dès qu'elles sont requises par une dépendance de production du studio ou d'un composant exporté, même avec une exception.",
+  "allowed": ["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "OFL-1.1", "0BSD", "BlueOak-1.0.0", "Zlib", "Python-2.0", "CC0-1.0", "CC-BY-3.0", "CC-BY-4.0"],
+  "forbiddenInProduction": ["MPL-2.0", "MPL-1.1", "LGPL-2.1-only", "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later", "GPL-2.0-only", "GPL-2.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later", "AGPL-3.0-only", "AGPL-3.0-or-later"],
+  "exceptions": [
+    {
+      "package": "@img/sharp-win32-x64",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "scope": "prod",
+      "via": "next → sharp (dépendance optionnelle de Next.js pour next/image)",
+      "reason": "Binaire libvips installé par Next.js. Jamais exécuté : next.config.ts fixe images.unoptimized = true. Jamais inclus dans un composant exporté (vérifié par licenses:check et verify:export). Pas d'overrides, pour ne pas casser Next.",
+      "status": "acceptée",
+      "date": "2026-11-13",
+      "par": "mainteneur"
+    },
+    {
+      "package": "lightningcss",
+      "license": "MPL-2.0",
+      "scope": "dev",
+      "via": "tailwindcss / @tailwindcss/node (compilation CSS au build)",
+      "reason": "Outil de build, jamais distribué dans le studio ni dans les exports.",
+      "status": "acceptée",
+      "date": "2026-11-13",
+      "par": "mainteneur"
+    },
+    {
+      "package": "lightningcss-win32-x64-msvc",
+      "license": "MPL-2.0",
+      "scope": "dev",
+      "via": "lightningcss (binaire natif Windows x64)",
+      "reason": "Binaire de l'outil de build lightningcss, jamais distribué.",
+      "status": "acceptée",
+      "date": "2026-11-13",
+      "par": "mainteneur"
+    },
+    {
+      "package": "axe-core",
+      "license": "MPL-2.0",
+      "scope": "dev",
+      "via": "eslint-config-next → eslint-plugin-jsx-a11y (lint)",
+      "reason": "Utilisé uniquement par le linter, jamais distribué.",
+      "status": "acceptée",
+      "date": "2026-11-13",
+      "par": "mainteneur"
+    }
+  ]
+}

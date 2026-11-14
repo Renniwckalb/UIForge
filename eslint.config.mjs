@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Bundle généré par scripts/build-export-runtime.mts
+    ".forge/**",
+    // Sources tierces copiées telles quelles par le CLI shadcn (shadcn/ui, Magic UI, Aceternity UI)
+    "src/vendor/**",
+    "src/forge/generated/**",
   ]),
 ]);
 
