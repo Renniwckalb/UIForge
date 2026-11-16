@@ -23,6 +23,8 @@ export type TextField = {
   /** Nom de prop proposé à l'export */
   propHint: string;
   multiline?: boolean;
+  /** false : le texte n'est pas exposé comme prop à la création (ex. libellé d'accessibilité) */
+  expose?: boolean;
 };
 
 /** Source d'un attribut JSX */

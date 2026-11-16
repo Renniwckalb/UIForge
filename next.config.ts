@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   partialPrefetching: true,
   turbopack: {
+    // Racine explicite : un package-lock.json dans un dossier parent (ex. le dossier utilisateur) ne doit
+    // pas devenir la racine du workspace (sinon le dossier .next est surveillé et le dev server boucle).
+    root: process.cwd(),
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

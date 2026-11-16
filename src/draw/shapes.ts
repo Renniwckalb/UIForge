@@ -283,6 +283,9 @@ export function contentBox(shapes: Shape[], pad = 0) {
   return { x: r2(x1 - pad), y: r2(y1 - pad), w: r2(x2 - x1 + pad * 2), h: r2(y2 - y1 + pad * 2) };
 }
 
+/** Clé localStorage du dessin en cours (page /dessin), relue par la brique SVG du studio */
+export const DRAWING_STORAGE_KEY = "ui-forge:svg-drawing";
+
 export type SvgOptions = { crop?: boolean; padding?: number };
 
 /** Document SVG complet (code affiché et fichier téléchargé) */

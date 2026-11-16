@@ -28,6 +28,8 @@ npm run dev        # http://localhost:3000 — fonctionne hors ligne (Monaco et 
 | --- | --- |
 | `npm test` | Tests codegen ↔ parseur : aller-retour TSX/CSS, breakpoints, code conservé, raccourcis, avis de tiers |
 | `npx tsx tests/e2e/studio.smoke.mts http://localhost:3000` | Test du studio dans Chromium (Playwright) : glisser-déposer, panneaux, Monaco, mode Interactif, breakpoints, préréglage Beautiful UI, conflit de raccourcis, aucune requête externe |
+| `npx tsx tests/e2e/icon.smoke.mts http://localhost:3000` | Brique Icône dans Chromium : chargement à la demande, taille, `aria-hidden`, sélecteur (recherche → icône appliquée), onglet Code |
+| `npx tsx tests/e2e/svg.smoke.mts http://localhost:3000` | Brique SVG dans Chromium : rendu (rôle, id préfixé, taille), collage malveillant nettoyé, recoloration `currentColor`, SVG invalide refusé |
 | `npm run verify:export` | Exporte chaque modèle dans un projet `create-next-app` **vierge**, installe les dépendances du README, `next build`, puis vérifie rendu, Drawer, ⌘K (`shortcut`, `enableShortcut`), NumberFlow, animations du Dialogue, responsive, animations Beautiful UI, `prefers-reduced-motion` et `THIRD_PARTY_NOTICES.md` |
 | `npm run verify:js-export` | Exporte chaque modèle en Web Component et le vérifie dans Chromium : page HTML en `file://`, `import` + `mount()`, instances multiples, props (attributs, propriétés, `setProps`), drawer et ⌘K dans le Shadow DOM, enveloppe React, aucune erreur ni requête externe |
 | `npm run build:export-runtime` | Compile le rendu serveur de l'export Web Component pour `/api/export` (lancé par `dev` et `build`) |
@@ -46,7 +48,31 @@ Interface en **anglais** (langue de base), **français** et **chinois** : sélec
 
 ## Agents IA
 
-Un agent IA peut créer des composants sans piloter l'interface :
+Un agent IA peut créer des composants sans piloter l'interface. Le plus simple est le **serveur MCP** :
+
+```bash
+npm run dev
+claude mcp add --transport http ui-forge http://localhost:3000/api/mcp   # Claude Code
+```
+
+Pour un client qui ne parle que stdio (Claude Desktop…), passer par un pont : `npx mcp-remote http://localhost:3000/api/mcp`.
+
+| Outil MCP | Rôle |
+| --- | --- |
+| `list_bricks` | Briques disponibles (slots, textes), par famille |
+| `get_brick` | Référence complète d'une ou plusieurs briques (props, styles, schéma d'un nœud) ; propose l'id le plus proche en cas de faute |
+| `get_style_tokens` | Tokens du thème par clé de style, couches (états, breakpoints), animations |
+| `search_icons` | Trouve des noms d'icônes Lucide pour la brique `lucide.icon` (mots anglais, quelques synonymes : delete → Trash) |
+| `prepare_svg` | Vérifie et nettoie un SVG pour la brique `html.svg` (option : recolorer en `currentColor`) |
+| `validate_spec` | Valide une spec sans l'exporter : plan du composant ou erreurs avec chemin JSON |
+| `render_preview` | Capture PNG du composant dans un vrai navigateur (mobile / tablette / desktop ou largeur en px, clair / sombre, overlays fermés ou ouverts) : l'agent voit son résultat et corrige |
+| `create_link` | Lien `/new#spec=…` à donner à l'utilisateur |
+| `export_component` | Fichiers React ou Web Component (`files: "component"` pour ne garder que le code) |
+| `get_guide` | Le guide complet (`/llms.txt`), aussi exposé en ressources `ui-forge://guide` et `ui-forge://schema` |
+
+Le serveur est sans état (`src/forge/mcp/server.ts`, route `src/app/api/mcp/route.ts`) : JSON-RPC 2.0 en POST, réponses JSON, aucune session ni dépendance supplémentaire. Les erreurs de spec reviennent comme résultats d'outil (`isError`) pour que l'agent se corrige seul.
+
+Les mêmes fonctions restent disponibles sans MCP :
 
 1. **Format « spec »** : un arbre de briques en JSON (`{ "name": "PricingCard", "children": [{ "brick": "shadcn.card", "texts": { "title": "Pro" } }] }`), converti et validé en modèle complet (`src/forge/spec/spec.ts`). Les erreurs indiquent le chemin JSON (`children[0].props.variant: …`).
 2. **Documentation pour agents**, générée depuis le registre des briques et donc toujours à jour : `/llms.txt` (mode d'emploi, briques, tokens, exemples) et `/schema.json` (JSON Schema).
@@ -56,6 +82,25 @@ Un agent IA peut créer des composants sans piloter l'interface :
    - `POST /api/export` `{ spec, format: "react" | "web-component", language, locale, output: "json" | "zip" }` → fichiers exportés ou .zip. Les mêmes champs sont acceptés en GET.
 
 L'export Web Component côté serveur a besoin d'un rendu React que Next.js interdit dans les routes : `npm run build:export-runtime` (lancé par `predev` et `prebuild`) le compile à part dans `.forge/web-component-export.mjs`.
+
+## Icônes
+
+La brique **Icône** (`lucide.icon`) affiche n'importe laquelle des 2 000+ icônes [Lucide](https://lucide.dev/icons) (ISC) : sélecteur avec recherche dans le panneau Comportement, couleur par le style Texte, taille par le style Largeur, épaisseur du trait, libellé accessible (vide = décorative).
+
+- Export : `import { ArrowRightIcon } from "lucide-react"`, seules les icônes utilisées. Le code est relu à l'identique ; écrire `<HeartIcon />` dans l'onglet Code crée une icône.
+- La liste des noms est générée par `scripts/lucide-icons.mts` (lancé par `predev` et `prebuild`) dans `src/forge/generated/lucide-icons.ts`, avec les anciens noms encore exportés (`Trash2` → `Trash`). Les composants des icônes ne sont chargés qu'à la demande (`src/forge/runtime/icons.ts`) : le studio reste léger tant qu'aucune icône n'est utilisée.
+
+## Aperçu pour agents (`render_preview`)
+
+La page `/render#spec=…&scheme=dark&overlays=open` affiche un composant seul. L'outil MCP `render_preview` l'ouvre dans un Chromium sans interface (Playwright, chargé à la demande, navigateur partagé et fermé après une minute d'inactivité) et renvoie la capture à l'agent. Le rendu ne peut joindre aucun autre hôte que le serveur. Sans Playwright installé sur le serveur, l'outil répond par une erreur explicite (`npm install -D playwright && npx playwright install chromium`).
+
+## SVG dans les composants
+
+La brique **Dessin SVG** (`html.svg`, famille Fondations) intègre n'importe quel SVG : illustration, logo, pictogramme. Dans le panneau Comportement : coller le code, **Importer un .svg**, **Depuis Dessin** (reprend le dessin de la page `/dessin`, recadré) ou **Couleur du texte** (remplissages et contours en `currentColor`, qui suivent alors le style Texte).
+
+- **Nettoyage systématique** (`src/forge/svg/svg.ts`, sans DOM) : le balisage est relu par un petit parseur XML puis reconstruit depuis une liste blanche. Disparaissent les scripts, `on*`, `<foreignObject>`, `<style>`, liens, et toute URL externe (`href`, `url()`) ; seuls les `#fragments` et les images `data:image/png|jpeg|gif|webp` restent. Les métadonnées d'éditeurs (Illustrator, Inkscape…) sont retirées sans bruit. Le nettoyage s'applique partout : collage, fichier, spec d'agent (erreur stricte), lien `/new`, JSON importé, code édité à la main.
+- **Taille et accessibilité** : `width`/`height` deviennent un `viewBox`, la taille se règle avec le style Largeur (hauteur proportionnelle). Le texte « Libellé accessible » donne `role="img"` + `aria-label` ; vide, le dessin est décoratif (`aria-hidden`).
+- **Export** : vrai JSX (`<path strokeWidth="2" />`, `style={{ … }}`), jamais `innerHTML` ; identifiants internes préfixés (`mon-composant-svg1-…`) pour éviter les collisions entre SVG d'une même page. Le code reste éditable dans l'onglet Code et relu à l'identique ; un SVG avec des valeurs dynamiques devient un bloc brut conservé.
 
 ## Modèle et synchronisation
 

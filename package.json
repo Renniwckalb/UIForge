@@ -5,9 +5,9 @@
   "scripts": {
     "vendor:sync": "tsx scripts/vendor-sync.ts",
     "build:export-runtime": "tsx scripts/build-export-runtime.mts",
-    "predev": "tsx scripts/vendor-sync.ts && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
+    "predev": "tsx scripts/vendor-sync.ts && tsx scripts/lucide-icons.mts && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
     "dev": "next dev",
-    "prebuild": "tsx scripts/vendor-sync.ts && tsx scripts/licenses.mts --check && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
+    "prebuild": "tsx scripts/vendor-sync.ts && tsx scripts/lucide-icons.mts && tsx scripts/licenses.mts --check && tsx scripts/licenses.mts --write && tsx scripts/build-export-runtime.mts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

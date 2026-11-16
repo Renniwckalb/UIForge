@@ -1,6 +1,6 @@
 # Licences
 
-UI Forge est publié sous **licence MIT** (fichier [LICENSE](./LICENSE)). Inventaire généré par `npm run licenses:report` le 2026-11-14 ; contrôle : `npm run licenses:check`.
+UI Forge est publié sous **licence MIT** (fichier [LICENSE](./LICENSE)). Inventaire généré par `npm run licenses:report` le 2026-11-16 ; contrôle : `npm run licenses:check`.
 
 Liste autorisée : MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, OFL-1.1, 0BSD, BlueOak-1.0.0, Zlib, Python-2.0, CC0-1.0, CC-BY-3.0, CC-BY-4.0. Interdites en production (studio et dépendances des exports) : MPL-2.0, MPL-1.1, LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later.
 

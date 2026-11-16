@@ -10,12 +10,14 @@ import type { ComponentDoc } from "../model/types";
 import { scopeClass } from "../codegen/css";
 import { ComponentRenderer } from "../runtime/Renderer";
 import { compileStandalone } from "../runtime/tailwind-runtime";
+import { preloadIconsFor } from "../runtime/icons";
 import { buildVanillaFiles, combinations, RUNTIME_CLASSES, variantPlan, type NodeVariants, type VanillaSnapshot } from "./vanilla";
 
 const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
 export async function snapshotDoc(doc: ComponentDoc): Promise<VanillaSnapshot> {
   const scheme = doc.theme.defaultScheme;
+  await preloadIconsFor(doc);
   const host = document.createElement("div");
   // Dans la fenêtre (les observateurs d'intersection se déclenchent) mais invisible et inerte
   host.style.cssText = "position:fixed;left:0;top:0;width:1280px;opacity:0;pointer-events:none;z-index:-1;";

@@ -7,6 +7,10 @@ import { getBrick, findBrick, isContainer } from "../bricks/registry";
 import type { BrickDefinition } from "../bricks/types";
 import { defaultTheme } from "../tokens/theme";
 import type { ComponentDoc, Node, NodeId, PropValue, TextBinding } from "./types";
+import { SVG_BRICK_ID } from "../bricks/defs/svg";
+import { prepareSvg } from "../svg/svg";
+import { DEFAULT_ICON, ICON_BRICK_ID } from "../bricks/defs/icon";
+import { canonicalIcon } from "../icons/lucide";
 
 export const RESERVED_PROPS = new Set(["className", "colorScheme", "children", "style", "key", "ref"]);
 
@@ -110,7 +114,7 @@ export function createNode(doc: ComponentDoc, brickId: string, reserved?: Set<st
     }
     taken.add(name);
     // texte par défaut dans la langue de l'interface (contenu du composant)
-    texts[t.key] = { value: trValue(Array.isArray(t.default) ? [...t.default] : t.default), expose: true, propName: name };
+    texts[t.key] = { value: trValue(Array.isArray(t.default) ? [...t.default] : t.default), expose: t.expose !== false, propName: name };
   }
   const slots: Record<string, NodeId[]> = {};
   for (const s of Object.keys(brick.slots ?? {})) slots[s] = [];
@@ -283,6 +287,13 @@ export function normalizeDoc(doc: ComponentDoc) {
     for (const s of Object.keys(brick.slots ?? {})) n.slots[s] ??= [];
     for (const [k, f] of Object.entries(brick.props)) if (n.props[k] === undefined) n.props[k] = f.default;
     for (const k of Object.keys(n.props)) if (!(k in brick.props)) delete n.props[k];
+    // SVG : toujours stocké nettoyé et canonique, quelle que soit sa provenance (JSON importé, lien, base locale)
+    if (brick.id === SVG_BRICK_ID && typeof n.props.markup === "string") {
+      const p = prepareSvg(n.props.markup);
+      if (p.tree) n.props.markup = p.markup;
+    }
+    // Icône : ancien nom → nom canonique ; inconnue (JSON importé, autre version de Lucide) → icône par défaut
+    if (brick.id === ICON_BRICK_ID) n.props.name = canonicalIcon(String(n.props.name)) ?? DEFAULT_ICON;
     n.style ??= { base: {} };
     n.style.base ??= {};
     n.interactions ??= [];

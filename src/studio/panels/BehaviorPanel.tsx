@@ -14,6 +14,10 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { BufferedInput, EmptyState, Field, Section, Segmented, SelectInput, SliderInput, TextInput } from "./controls";
 import { StatePicker } from "./StatePicker";
+import { SvgMarkupField } from "./SvgMarkupField";
+import { SVG_BRICK_ID } from "@/forge/bricks/defs/svg";
+import { ICON_BRICK_ID } from "@/forge/bricks/defs/icon";
+import { IconPicker } from "./IconPicker";
 import { translate, translateNodeName, type Locale } from "@/i18n/core";
 import { useLocale, useT } from "@/i18n/react";
 
@@ -82,9 +86,38 @@ function PropsSection({ node }: { node: Node }) {
     <Section title={`${t("Props")} · ${t(brick.library.name)}`}>
       {entries.map(([key, field]) => {
         const ex = exposed.find((e) => e.nodeId === node.id && e.prop === key);
+        if (brick.id === SVG_BRICK_ID && key === "markup")
+          return (
+            <div key={key} className="flex flex-col gap-1.5">
+              <label htmlFor={`prop-${key}`} className="text-[12px] text-muted-foreground">
+                {t(field.label)}
+              </label>
+              <SvgMarkupField
+                id={`prop-${key}`}
+                value={String(node.props[key] ?? "")}
+                onChange={(v) =>
+                  update((d) => {
+                    d.nodes[node.id].props[key] = v;
+                  })
+                }
+              />
+              {field.help && <p className="text-[11px] text-muted-foreground">{t(field.help)}</p>}
+            </div>
+          );
         return (
           <div key={key} className="flex flex-col gap-1">
             <Field label={t(field.label)} hint={field.help && t(field.help)} htmlFor={`prop-${key}`}>
+              {brick.id === ICON_BRICK_ID && key === "name" ? (
+                <IconPicker
+                  id={`prop-${key}`}
+                  value={String(node.props[key])}
+                  onChange={(v) =>
+                    update((d) => {
+                      d.nodes[node.id].props[key] = v;
+                    })
+                  }
+                />
+              ) : (
               <PropControl
                 id={`prop-${key}`}
                 field={field}
@@ -98,6 +131,7 @@ function PropsSection({ node }: { node: Node }) {
                   )
                 }
               />
+              )}
             </Field>
             {brick.effect?.kind === "hotkey" && key === brick.effect.shortcutProp && <ShortcutStatus node={node} value={String(node.props[key])} />}
             {"exposable" in field && field.exposable && (

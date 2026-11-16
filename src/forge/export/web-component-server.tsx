@@ -14,6 +14,11 @@ import { ComponentRenderer } from "../runtime/Renderer";
 import { compileStandalone } from "../runtime/tailwind-runtime";
 import { buildVanillaFiles, combinations, RUNTIME_CLASSES, variantPlan, type NodeVariants } from "./vanilla";
 import { getLocale, setCurrentLocale, type Locale } from "../../i18n/core";
+import { icons } from "lucide-react";
+import { registerLucideIcons, type IconComponent } from "../runtime/icons";
+
+// Rendu statique synchrone : toutes les icônes Lucide sont disponibles dès le chargement du module
+registerLucideIcons(icons as unknown as Record<string, IconComponent>);
 
 function render(doc: ComponentDoc) {
   return renderToStaticMarkup(<ComponentRenderer doc={doc} mode="export" scheme={doc.theme.defaultScheme} breakpoints="media" />).replace(/<style[\s\S]*?<\/style>/g, "");

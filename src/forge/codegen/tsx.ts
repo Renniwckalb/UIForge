@@ -9,6 +9,8 @@ import type { ComponentDoc, Interaction, Node } from "../model/types";
 import { toPascal, walk } from "../model/ops";
 import { breakpointClasses, nodeClass, scopeClass } from "./css";
 import { SHORTCUT_HELPER_SOURCE } from "../runtime/shortcut";
+import { SVG_BRICK_ID } from "../bricks/defs/svg";
+import { jsxAttrPair, prepareSvg, scopeSvgIds, svgChildrenToJsx } from "../svg/svg";
 
 export type GenResult = {
   code: string;
@@ -166,7 +168,10 @@ function formatAttrs(attrs: [string, string][], indent: string): { inline: strin
   return { inline: parts.length ? " " + parts.join(" ") : "", multi: parts.map((p) => indent + "  " + p.replace(/\n/g, "\n" + indent + "  ")) };
 }
 
-function emitEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, indent: string, inList = false): string[] {
+/** Contenu imposé par une brique traitée à part (SVG) : attributs ajoutés et enfants déjà générés */
+type ElExtra = { attrs: [string, string][]; children: string[] };
+
+function emitEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, indent: string, inList = false, extra?: ElExtra): string[] {
   const tag = tagOf(el, node);
   ctx.used.add(tag.split(".")[0]);
   const attrs: [string, string][] = [];
@@ -190,9 +195,10 @@ function emitEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, indent:
     const v = attrValue(ctx, src, node, brick, name);
     if (v !== null) attrs.push([name, v]);
   }
+  if (extra) for (const [name, v] of extra.attrs) if (!(name === "style" && attrs.some(([k]) => k === "style"))) attrs.push([name, v]);
   // Attributs saisis à la main, conservés tels quels
   if (el.styled) for (const [name, v] of Object.entries(node.extraAttrs ?? {})) attrs.push([name, v]);
-  const children = (el.children ?? []).flatMap((c) => emitTpl(ctx, c, node, brick, indent + "  "));
+  const children = extra ? extra.children : (el.children ?? []).flatMap((c) => emitTpl(ctx, c, node, brick, indent + "  "));
   const a = formatAttrs(attrs, indent);
   const openInline = `${indent}<${tag}${a.inline}`;
   const multiline = openInline.length > 100 || a.inline.includes("\n");
@@ -273,7 +279,23 @@ function emitNode(ctx: Ctx, node: Node, indent: string): string[] {
   if (!brick) return [`${indent}{/* brique inconnue : ${node.brick} */}`];
   brick.library.npm.forEach((p) => ctx.npm.add(p));
   brick.library.vendored?.forEach((v) => ctx.vendored.add(v));
+  if (brick.id === SVG_BRICK_ID) return emitEl(ctx, brick.tpl, node, brick, indent, false, svgExtra(ctx, node, indent));
   return emitEl(ctx, brick.tpl, node, brick, indent);
+}
+
+/** Préfixe des identifiants internes d'un SVG (dégradés, masques…) : unique par composant et par nœud */
+export function svgIdPrefix(doc: ComponentDoc, nodeId: string) {
+  return `${scopeClass(doc)}-${nodeId}-`;
+}
+
+/** SVG : attributs de la racine du dessin, accessibilité et contenu en JSX */
+function svgExtra(ctx: Ctx, node: Node, indent: string): ElExtra {
+  const p = prepareSvg(String(node.props.markup ?? ""));
+  const label = node.texts.label;
+  const a11y: [string, string][] = label?.expose || label?.value ? [["role", '"img"']] : [["aria-hidden", '"true"']];
+  if (!p.tree) return { attrs: a11y, children: [`${indent}  {/* ${tr("Invalid SVG")} */}`] };
+  const tree = scopeSvgIds(p.tree, svgIdPrefix(ctx.doc, node.id));
+  return { attrs: [...tree.attrs.map(([k, v]) => jsxAttrPair(k, v)), ...a11y], children: svgChildrenToJsx(tree.children, indent + "  ") };
 }
 
 function mergeImports(specs: ImportSpec[], used: Set<string>): string[] {

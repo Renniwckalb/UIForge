@@ -139,7 +139,10 @@ export function vanillaConfig(doc: ComponentDoc, variants: Record<string, NodeVa
     if (!needs) return;
     const texts: Record<string, string | string[]> = {};
     for (const [k, t] of Object.entries(n.texts)) texts[k] = t.value;
-    const v: VanillaNode = { brick: b.id, props: { ...n.props }, texts };
+    // le dessin SVG est déjà dans le balisage pré-rendu : inutile de le recopier dans la configuration
+    const { markup: _markup, ...props } = n.props;
+    void _markup;
+    const v: VanillaNode = { brick: b.id, props: b.id === "html.svg" ? props : { ...n.props }, texts };
     if (b.state?.kind === "open") v.open = n.props[b.state.initialProp] === true;
     if (n.interactions.length) v.actions = n.interactions.map((i) => i.action);
     nodes[n.id] = v;

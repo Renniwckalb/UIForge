@@ -42,6 +42,16 @@ next-env.d.ts
 
 # UI Forge
 /test-results
+# Fichiers temporaires de tests (scripts de débogage, sorties intermédiaires)
+/tests/tmp/
+
+# Playwright (tests de fumée tests/e2e, captures de l'outil MCP render_preview)
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Réglages locaux de Claude Code (le dossier .claude/ partagé, lui, peut être versionné)
+.claude/settings.local.json
 
 # Rendu serveur de l'export Web Component (npm run build:export-runtime)
 /.forge

@@ -34,6 +34,10 @@ import {
 } from "../model/types";
 import { COLOR_TOKENS, defaultTheme, STYLE_TOKEN_GROUP, tokensOfGroup } from "../tokens/theme";
 import { BEAUTIFUL_UI_REF, BEAUTIFUL_UI_THEME } from "../tokens/beautiful-ui";
+import { SVG_BRICK_ID } from "../bricks/defs/svg";
+import { isRemoval, prepareSvg, svgIssueMessage } from "../svg/svg";
+import { ICON_BRICK_ID } from "../bricks/defs/icon";
+import { canonicalIcon, suggestIcons } from "../icons/lucide";
 
 export const SPEC_FORMAT = "ui-forge/spec@1";
 
@@ -227,6 +231,20 @@ function buildNode(ctx: Ctx, path: string, raw: unknown, parentId: string, slot:
         }
       }
   }
+  if (b.id === SVG_BRICK_ID) {
+    // Validation stricte : un agent doit savoir ce qui serait retiré de son dessin
+    const p = prepareSvg(String(node.props.markup ?? ""));
+    if (!p.tree) err(ctx, `${path}.props.markup`, svgIssueMessage(p.issues[0]));
+    else {
+      for (const i of p.issues.filter(isRemoval)) err(ctx, `${path}.props.markup`, svgIssueMessage(i));
+      node.props.markup = p.markup;
+    }
+  }
+  if (b.id === ICON_BRICK_ID) {
+    const canonical = canonicalIcon(String(node.props.name));
+    if (canonical) node.props.name = canonical;
+    else err(ctx, `${path}.props.name`, `unknown Lucide icon "${String(node.props.name)}" (did you mean: ${suggestIcons(String(node.props.name)).join(", ")}?)`);
+  }
   if (raw.texts !== undefined) {
     if (!isObj(raw.texts)) err(ctx, `${path}.texts`, "must be an object");
     else
@@ -249,7 +267,10 @@ function buildNode(ctx: Ctx, path: string, raw: unknown, parentId: string, slot:
         else if (v === false) node.texts[k].expose = false;
         else {
           const n = propName(ctx, `${path}.textProps.${k}`, v, { nodeId: node.id, key: k });
-          if (n) node.texts[k].propName = n;
+          if (n) {
+            node.texts[k].propName = n;
+            node.texts[k].expose = true;
+          }
         }
       }
   }
@@ -460,9 +481,13 @@ export function docToSpec(doc: ComponentDoc): ComponentSpec {
     for (const tf of b.texts) {
       const t = n.texts[tf.key];
       if (!t) continue;
+      // texte non exposé par défaut (libellé d'accessibilité du SVG) : omis s'il est vide
+      const exposedByDefault = tf.expose !== false;
+      if (!exposedByDefault && !t.expose && t.value === "") continue;
       texts[tf.key] = t.value;
-      if (!t.expose) textProps[tf.key] = false;
-      else if (t.propName !== toIdentifier(tf.propHint)) textProps[tf.key] = t.propName;
+      if (!t.expose) {
+        if (exposedByDefault) textProps[tf.key] = false;
+      } else if (!exposedByDefault || t.propName !== toIdentifier(tf.propHint)) textProps[tf.key] = t.propName;
     }
     if (Object.keys(texts).length) out.texts = texts;
     if (Object.keys(textProps).length) out.textProps = textProps;

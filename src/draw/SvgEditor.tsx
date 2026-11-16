@@ -43,6 +43,7 @@ import { ColorInput, Field, Section, Segmented, SliderInput, TextInput } from "@
 import {
   bbox,
   constrainDraw,
+  DRAWING_STORAGE_KEY,
   DEFAULT_STYLE,
   editorMarkup,
   finalizePencil,
@@ -81,7 +82,7 @@ const TOOLS: { id: Tool; label: string; icon: LucideIcon; key: string }[] = [
   { id: "eraser", label: "Eraser", icon: Eraser, key: "e" },
 ];
 
-const STORAGE_KEY = "ui-forge:svg-drawing";
+const STORAGE_KEY = DRAWING_STORAGE_KEY;
 const EMPTY: Drawing = { width: 800, height: 600, background: "#ffffff", shapes: [] };
 const GRID = 10;
 

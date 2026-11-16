@@ -16,6 +16,8 @@ import { resolveTag } from "./components";
 import { matchesShortcut } from "./shortcut";
 import { compileClasses } from "./tailwind-runtime";
 import { VIEWPORT_WIDTHS } from "./viewport";
+import { SVG_BRICK_ID } from "../bricks/defs/svg";
+import { isSvgText, prepareSvg, scopeSvgIds, svgAttrsToReact, type SvgChild } from "../svg/svg";
 
 export type RenderMode = "edit" | "live" | "export";
 
@@ -188,8 +190,35 @@ function NodeView({ id, ...slotProps }: { id: NodeId } & SlotProps) {
   }
   const brick = findBrick(node.brick);
   if (!brick) return <div className="forge-node-error">Brique inconnue : {node.brick}</div>;
+  if (brick.id === SVG_BRICK_ID) return <NodeBoundary name={node.name}>{renderSvg(ctx, node, brick, slotProps)}</NodeBoundary>;
   const tpl = ctx.mode !== "live" && brick.editTpl ? brick.editTpl : brick.tpl;
   return <NodeBoundary name={node.name}>{renderEl(ctx, tpl, node, brick, "r", slotProps)}</NodeBoundary>;
+}
+
+/** Préfixe des identifiants internes d'un SVG : le même que dans le code exporté (codegen svgIdPrefix) */
+const svgIdPrefix = (doc: ComponentDoc, nodeId: string) => `${scopeClass(doc)}-${nodeId}-`;
+
+function svgToReact(c: SvgChild, key: string): React.ReactNode {
+  if (isSvgText(c)) return c.text;
+  const kids = c.children.map((k, i) => svgToReact(k, `${key}.${i}`));
+  return React.createElement(c.tag, { key, ...svgAttrsToReact(c.attrs) }, ...kids);
+}
+
+/** SVG nettoyé → éléments React (jamais d'innerHTML) ; balisage invalide → encadré d'erreur sélectionnable */
+function renderSvg(ctx: Ctx, node: Node, brick: BrickDefinition, slotProps: SlotProps): React.ReactNode {
+  const p = prepareSvg(String(node.props.markup ?? ""));
+  if (!p.tree) {
+    return (
+      <div className="forge-node-error" data-forge-id={ctx.mode === "edit" ? node.id : undefined}>
+        {node.name} : {tr("Invalid SVG")}
+      </div>
+    );
+  }
+  const tree = scopeSvgIds(p.tree, svgIdPrefix(ctx.doc, node.id));
+  const label = node.texts.label;
+  const a11y = label?.expose || label?.value ? { role: "img" } : { "aria-hidden": true };
+  const props = { ...svgAttrsToReact(tree.attrs), ...a11y };
+  return renderEl(ctx, brick.tpl, node, brick, "r", slotProps, undefined, { props, children: tree.children.map((c, i) => svgToReact(c, `s${i}`)) });
 }
 
 function runActions(ctx: Ctx, actions: InteractionAction[]) {
@@ -241,7 +270,17 @@ function joinClasses(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
 }
 
-function renderEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, key: string, slotProps?: SlotProps, item?: string): React.ReactNode {
+function renderEl(
+  ctx: Ctx,
+  el: TplEl,
+  node: Node,
+  brick: BrickDefinition,
+  key: string,
+  slotProps?: SlotProps,
+  item?: string,
+  /** Brique traitée à part (SVG) : props ajoutées et enfants déjà rendus */
+  extra?: { props: Record<string, unknown>; children: React.ReactNode[] },
+): React.ReactNode {
   const tagName = typeof el.el === "string" ? el.el : (el.el.map[String(node.props[el.el.prop])] ?? Object.values(el.el.map)[0]);
   // Export : la légende d'aperçu d'édition disparaît, NumberFlow devient un texte formaté (animé par le runtime)
   if (ctx.mode === "export" && el.classes?.includes("forge-edit-caption")) return null;
@@ -265,8 +304,11 @@ function renderEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, key: 
 
   for (const [name, src] of Object.entries(el.attrs ?? {})) {
     const v = attrRuntime(ctx, src, node, brick);
-    if (v !== undefined) props[name] = v;
+    // texte vide : attribut omis, comme dans le code généré
+    if (v !== undefined && !("text" in src && v === "")) props[name] = v;
   }
+
+  if (extra) for (const [k, v] of Object.entries(extra.props)) if (props[k] === undefined) props[k] = v;
 
   // Attributs saisis à la main : seules les valeurs littérales sont appliquées dans le studio
   if (el.styled) {
@@ -317,7 +359,7 @@ function renderEl(ctx: Ctx, el: TplEl, node: Node, brick: BrickDefinition, key: 
   }
 
   const marked = "data-fx-text" in props;
-  const children = (el.children ?? []).flatMap((c, i) => renderTpl(ctx, c, node, brick, `${key}.${i}`, item, marked));
+  const children = extra ? extra.children : (el.children ?? []).flatMap((c, i) => renderTpl(ctx, c, node, brick, `${key}.${i}`, item, marked));
   delete props.key;
   if (children.length === 0) return <Tag key={key} {...props} />;
   return (

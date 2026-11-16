@@ -11,10 +11,11 @@ import { ANIMATION_PRESETS, BREAKPOINTS, STYLE_KEYS, STYLE_STATES, type StyleKey
 import { COLOR_TOKENS, defaultTheme, STYLE_TOKEN_GROUP, tokensOfGroup } from "../tokens/theme";
 import { getLocale, setCurrentLocale } from "../../i18n/core";
 import { defaultSlot, docToSpec, SPEC_FORMAT, type ComponentSpec } from "./spec";
+import { LUCIDE_ICON_NAMES, LUCIDE_VERSION } from "../icons/lucide";
 
 const LAYERS = ["base", ...STYLE_STATES, ...BREAKPOINTS];
 
-function tokensFor(key: StyleKey): string[] {
+export function tokensFor(key: StyleKey): string[] {
   const g = STYLE_TOKEN_GROUP[key];
   return g ? tokensOfGroup(defaultTheme(), g).map(([t]) => t) : [];
 }
@@ -44,7 +45,7 @@ function styleSchema(b: BrickDefinition) {
   };
 }
 
-function brickSchema(b: BrickDefinition) {
+export function brickSchema(b: BrickDefinition) {
   const props: Record<string, unknown> = {
     brick: { const: b.id, description: `${b.label} — ${b.description}` },
     ref: { type: "string", description: "Local id used as onClick target" },
@@ -152,7 +153,7 @@ function fieldLine(k: string, f: PropField) {
   return `\`${k}\`: ${type} = ${JSON.stringify(f.default)}${"exposable" in f && f.exposable ? " (exposable)" : ""}`;
 }
 
-function brickDoc(b: BrickDefinition) {
+export function brickDoc(b: BrickDefinition) {
   const lines = [`### \`${b.id}\` — ${b.label}`, "", b.description, ""];
   const main = defaultSlot(b);
   if (b.slots) lines.push(`- slots: ${Object.entries(b.slots).map(([s, d]) => `\`${s}\`${s === main ? " (= children)" : ""}${d.accepts === "inline" ? " (one simple element)" : ""}`).join(", ")}`);
@@ -200,6 +201,17 @@ export function llmsTxt(origin = ""): string {
 The JSON may also be a full studio model (\`ComponentDoc\`, as shown in the studio's "JSON model" tab).
 
 Example link: ${link}
+
+## MCP server (recommended for agents)
+
+UI Forge is also a Model Context Protocol server (Streamable HTTP, stateless): \`${origin}/api/mcp\`.
+
+\`\`\`bash
+claude mcp add --transport http ui-forge ${origin}/api/mcp
+\`\`\`
+
+Tools: \`list_bricks\`, \`get_brick\`, \`get_style_tokens\`, \`search_icons\`, \`prepare_svg\`, \`validate_spec\`, \`render_preview\` (PNG screenshot of the component, mobile/tablet/desktop, light/dark, overlays closed/open), \`create_link\`, \`export_component\`, \`get_guide\`.
+Resources: \`ui-forge://guide\` (this document), \`ui-forge://schema\` (JSON Schema).
 
 ## HTTP API (stateless, CORS enabled, nothing is stored)
 
@@ -268,6 +280,31 @@ ${tokenLines.join("\n")}
 - Animation presets: ${ANIMATION_PRESETS.join(", ")}
 - Texts you omit keep the brick default; props you omit keep their default.
 - Validation is strict: unknown bricks, props, texts, slots, style keys or tokens are reported with their JSON path on the confirmation page.
+
+## Icons
+
+Use the \`lucide.icon\` brick with any Lucide icon name in PascalCase (${LUCIDE_ICON_NAMES.length} icons, lucide-react ${LUCIDE_VERSION}, https://lucide.dev/icons):
+
+\`\`\`json
+{ "brick": "lucide.icon", "props": { "name": "ArrowRight", "strokeWidth": 1.5 }, "style": { "width": "1.25rem", "fg": "color.primary" }, "texts": { "label": "Next" } }
+\`\`\`
+
+- \`style.fg\` sets the color, \`style.width\` the size. \`texts.label\` is the accessible name; empty = decorative (\`aria-hidden\`).
+- Unknown names are rejected with suggestions; old names (\`Trash2\`) are converted to the current one (\`Trash\`). The export imports \`<Name>Icon\` from \`lucide-react\`.
+- Use an icon next to a text by placing both in a horizontal \`layout.stack\` (\`props.direction: "row"\`, \`props.align: "center"\`).
+
+## Inline SVG (drawings, logos, illustrations)
+
+Use the \`html.svg\` brick and put the complete markup in \`props.markup\`:
+
+\`\`\`json
+{ "brick": "html.svg", "props": { "markup": "<svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\"><path d=\\"M4 12l5 5L20 6\\"/></svg>" }, "style": { "width": "3rem", "fg": "color.primary" }, "texts": { "label": "Done" } }
+\`\`\`
+
+- \`currentColor\` follows \`style.fg\`; \`style.width\` sets the size, the height follows the viewBox ratio (width/height attributes become a viewBox).
+- \`texts.label\` is the accessible name (\`role="img"\`); leave it empty for a decorative drawing (\`aria-hidden\`). It is not a component prop unless you set \`textProps.label\`.
+- Allowed: shapes, paths, groups, text, gradients, patterns, masks, clip paths, filters, markers, \`<use href="#id">\`, SMIL animations, \`data:image/png|jpeg|gif|webp\` images. Rejected (error on \`props.markup\`): scripts, event handlers (\`on*\`), \`<foreignObject>\`, \`<style>\`, links, and any external URL. Internal ids are prefixed automatically so several SVGs never collide.
+- The export contains real JSX (\`<path strokeWidth="2" />\`), not innerHTML.
 
 ## Bricks
 

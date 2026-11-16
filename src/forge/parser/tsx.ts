@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { tr } from "../../i18n/core";
 import { parse } from "@babel/parser";
-import { ALL_BRICKS, brickByShort, RAW_BRICK_ID } from "../bricks/registry";
+import { ALL_BRICKS, brickByShort, findBrick, RAW_BRICK_ID } from "../bricks/registry";
 import type { AttrSrc, BrickDefinition, TplEl, TplNode } from "../bricks/types";
 import type { Breakpoint, ComponentDoc, Diagnostic, Interaction, Node, NodeId, PropValue, StyleDecl, StyleKey, TextBinding } from "../model/types";
 import { BREAKPOINTS } from "../model/types";
@@ -15,6 +15,8 @@ import { cssValueToStyle } from "./css";
 import { SHORTCUT_HELPER_NAME } from "../runtime/shortcut";
 import { createNode, defaultProps, normalizeDoc, toPascal, uniquePropName } from "../model/ops";
 import { scopeClass } from "../codegen/css";
+import { SVG_BRICK_ID } from "../bricks/defs/svg";
+import { isRemoval, jsxAttrToSvg, objectToStyle, prepareSvg, serializeSvg, svgIssueMessage, unscopeSvgIds, type SvgChild, type SvgEl } from "../svg/svg";
 
 type AnyNode = any;
 export type ParseResult = { doc: ComponentDoc | null; diagnostics: Diagnostic[] };
@@ -480,6 +482,47 @@ function rawNode(ctx: Ctx, jsx: AnyNode, reason: string): NodeId {
   return id;
 }
 
+/** Résultat d'une correspondance réussie → nœud du modèle (reprend l'ancien nœud de même id s'il existe) */
+function commitNode(ctx: Ctx, brick: BrickDefinition, acc: Acc): NodeId {
+  const id = freshId(ctx, brick.short, acc.id);
+  ctx.usedIds.add(id);
+  const prev = ctx.prev.nodes[id]?.brick === brick.id ? ctx.prev.nodes[id] : null;
+  const base: Node = prev ? structuredClone(prev) : createNode({ ...ctx.prev, nodes: { ...ctx.prev.nodes, ...ctx.nodes }, exposedProps: [] } as ComponentDoc, brick.id);
+  base.id = id;
+  base.props = { ...defaultProps(brick), ...acc.props };
+  const texts: Record<string, TextBinding> = {};
+  for (const tf of brick.texts) {
+    const b = acc.texts[tf.key];
+    const prevB = prev?.texts[tf.key];
+    if (!b) {
+      texts[tf.key] = prevB ?? { value: tf.default, expose: false, propName: tf.propHint };
+      continue;
+    }
+    texts[tf.key] = { value: b.value, expose: b.expose, propName: b.expose ? b.propName : (prevB?.propName ?? tf.propHint) };
+  }
+  base.texts = texts;
+  base.slots = {};
+  for (const s of Object.keys(brick.slots ?? {})) base.slots[s] = acc.slots[s] ?? [];
+  base.interactions = [];
+  base.parentId = null;
+  for (const bp of BREAKPOINTS) {
+    if (acc.bp[bp] && Object.keys(acc.bp[bp]!).length) base.style[bp] = acc.bp[bp];
+    else delete base.style[bp];
+  }
+  if (acc.rawClasses.length) base.className = acc.rawClasses.join(" ");
+  else delete base.className;
+  if (acc.classNameExpr) base.classNameExpr = acc.classNameExpr;
+  else delete base.classNameExpr;
+  if (Object.keys(acc.extraAttrs).length) base.extraAttrs = acc.extraAttrs;
+  else delete base.extraAttrs;
+  if (!prev) base.name = `${brick.label} ${id.replace(/^\D+/, "")}`;
+  ctx.nodes[id] = base;
+  for (const e of acc.exposed) ctx.exposedProps.push({ nodeId: id, prop: e.prop, propName: e.propName });
+  if (acc.onClick) ctx.pendingInteractions.push({ nodeId: id, fn: acc.onClick });
+  ctx.diagnostics.push(...acc.warnings);
+  return id;
+}
+
 function parseNode(ctx: Ctx, jsx: AnyNode): NodeId | null {
   if (jsx.type === "JSXText") {
     const v = jsxTextValue(jsx.value).trim();
@@ -487,49 +530,20 @@ function parseNode(ctx: Ctx, jsx: AnyNode): NodeId | null {
     return rawNode(ctx, jsx, tr("Free text “{text}” outside a brick.", { text: v.slice(0, 30) }));
   }
   if (jsx.type !== "JSXElement") return rawNode(ctx, jsx, tr("Unrecognized JSX expression."));
+  if (jsxName(jsx.openingElement.name) === "svg") {
+    const snapshot = { nodes: { ...ctx.nodes }, used: new Set(ctx.usedIds), diags: ctx.diagnostics.length };
+    const id = parseSvgNode(ctx, jsx);
+    if (id) return id;
+    ctx.nodes = snapshot.nodes;
+    ctx.usedIds = snapshot.used;
+    ctx.diagnostics.length = snapshot.diags;
+    return rawNode(ctx, jsx, tr("<svg> contains dynamic values (only literal attributes and texts are editable)."));
+  }
   for (const brick of candidatesFor(ctx, jsx)) {
     const acc: Acc = newAcc();
     // Les enfants parsés ajoutent des nœuds à ctx : on travaille sur un instantané pour pouvoir annuler
     const snapshot = { nodes: { ...ctx.nodes }, used: new Set(ctx.usedIds), diags: ctx.diagnostics.length, pending: ctx.pendingInteractions.length };
-    if (matchEl(ctx, brick, brick.tpl, jsx, acc)) {
-      const id = freshId(ctx, brick.short, acc.id);
-      ctx.usedIds.add(id);
-      const prev = ctx.prev.nodes[id]?.brick === brick.id ? ctx.prev.nodes[id] : null;
-      const base: Node = prev ? structuredClone(prev) : createNode({ ...ctx.prev, nodes: { ...ctx.prev.nodes, ...ctx.nodes }, exposedProps: [] } as ComponentDoc, brick.id);
-      base.id = id;
-      base.props = { ...defaultProps(brick), ...acc.props };
-      const texts: Record<string, TextBinding> = {};
-      for (const tf of brick.texts) {
-        const b = acc.texts[tf.key];
-        const prevB = prev?.texts[tf.key];
-        if (!b) {
-          texts[tf.key] = prevB ?? { value: tf.default, expose: false, propName: tf.propHint };
-          continue;
-        }
-        texts[tf.key] = { value: b.value, expose: b.expose, propName: b.expose ? b.propName : (prevB?.propName ?? tf.propHint) };
-      }
-      base.texts = texts;
-      base.slots = {};
-      for (const s of Object.keys(brick.slots ?? {})) base.slots[s] = acc.slots[s] ?? [];
-      base.interactions = [];
-      base.parentId = null;
-      for (const bp of BREAKPOINTS) {
-        if (acc.bp[bp] && Object.keys(acc.bp[bp]!).length) base.style[bp] = acc.bp[bp];
-        else delete base.style[bp];
-      }
-      if (acc.rawClasses.length) base.className = acc.rawClasses.join(" ");
-      else delete base.className;
-      if (acc.classNameExpr) base.classNameExpr = acc.classNameExpr;
-      else delete base.classNameExpr;
-      if (Object.keys(acc.extraAttrs).length) base.extraAttrs = acc.extraAttrs;
-      else delete base.extraAttrs;
-      if (!prev) base.name = `${brick.label} ${id.replace(/^\D+/, "")}`;
-      ctx.nodes[id] = base;
-      for (const e of acc.exposed) ctx.exposedProps.push({ nodeId: id, prop: e.prop, propName: e.propName });
-      if (acc.onClick) ctx.pendingInteractions.push({ nodeId: id, fn: acc.onClick });
-      ctx.diagnostics.push(...acc.warnings);
-      return id;
-    }
+    if (matchEl(ctx, brick, brick.tpl, jsx, acc)) return commitNode(ctx, brick, acc);
     ctx.nodes = snapshot.nodes;
     ctx.usedIds = snapshot.used;
     ctx.diagnostics.length = snapshot.diags;
@@ -537,6 +551,90 @@ function parseNode(ctx: Ctx, jsx: AnyNode): NodeId | null {
   }
   const tag = jsxName(jsx.openingElement.name);
   return rawNode(ctx, jsx, tr("<{tag}> does not match any known brick (or its structure was changed).", { tag }));
+}
+
+/* ——— SVG (brique html.svg) : le JSX du dessin redevient du balisage SVG ——— */
+
+/** Attributs gérés par la brique sur la racine <svg> (le reste appartient au dessin) */
+const SVG_MANAGED = new Set(["className", "aria-label", "role", "aria-hidden", "key"]);
+
+/** Valeur littérale d'un attribut JSX d'élément SVG, ou null si elle est dynamique */
+function svgAttrValue(name: string, value: AnyNode): string | null {
+  if (!value) return "true";
+  if (value.type === "StringLiteral") return value.value;
+  if (value.type !== "JSXExpressionContainer") return null;
+  const v = literalValue(value.expression);
+  if (!v.ok) return null;
+  if (name === "style") {
+    if (!v.value || typeof v.value !== "object" || Array.isArray(v.value)) return null;
+    return objectToStyle(Object.entries(v.value as Record<string, unknown>).map(([k, x]) => [k, String(x)]));
+  }
+  return typeof v.value === "object" ? null : String(v.value);
+}
+
+function svgAttrs(attributes: AnyNode[], skip?: (name: string, attr: AnyNode) => boolean): [string, string][] | null {
+  const out: [string, string][] = [];
+  for (const attr of attributes) {
+    if (attr.type !== "JSXAttribute") return null;
+    const name = jsxName(attr.name);
+    if (skip?.(name, attr)) continue;
+    const v = svgAttrValue(name, attr.value);
+    if (v === null) return null;
+    out.push([jsxAttrToSvg(name), v]);
+  }
+  return out;
+}
+
+function svgChildren(children: AnyNode[]): SvgChild[] | null {
+  const out: SvgChild[] = [];
+  for (const c of children) {
+    if (c.type === "JSXText") {
+      const v = jsxTextValue(c.value);
+      if (v.trim()) out.push({ text: v });
+      continue;
+    }
+    if (c.type === "JSXExpressionContainer") {
+      if (c.expression.type === "JSXEmptyExpression") continue;
+      const v = literalValue(c.expression);
+      if (!v.ok || typeof v.value === "object") return null;
+      out.push({ text: String(v.value) });
+      continue;
+    }
+    if (c.type !== "JSXElement") return null;
+    const attrs = svgAttrs(c.openingElement.attributes);
+    const kids = attrs && svgChildren(c.children);
+    if (!attrs || !kids) return null;
+    out.push({ tag: jsxName(c.openingElement.name), attrs, children: kids });
+  }
+  return out;
+}
+
+function parseSvgNode(ctx: Ctx, jsx: AnyNode): NodeId | null {
+  const brick = findBrick(SVG_BRICK_ID)!;
+  const managed: AnyNode[] = [];
+  const rootAttrs = svgAttrs(jsx.openingElement.attributes, (name, attr) => {
+    const scopeStyle = name === "style" && attr.value?.type === "JSXExpressionContainer" && attr.value.expression.type === "Identifier";
+    if (!SVG_MANAGED.has(name) && !scopeStyle) return false;
+    managed.push(attr);
+    return true;
+  });
+  const children = rootAttrs && svgChildren(jsx.children);
+  if (!rootAttrs || !children) return null;
+  const acc = newAcc();
+  const tpl: TplEl = { ...brick.tpl, attrs: { ...brick.tpl.attrs, role: { lit: "img" }, "aria-hidden": { lit: true } } };
+  const shell = { ...jsx, openingElement: { ...jsx.openingElement, attributes: managed }, children: [] };
+  if (!matchEl(ctx, brick, tpl, shell, acc)) return null;
+  // Préfixe des identifiants internes ajouté par le codegen (svgIdPrefix) ; la portée est en kebab-case
+  const tree: SvgEl = unscopeSvgIds({ tag: "svg", attrs: rootAttrs, children }, new RegExp(`^${ctx.scope.replace(/[^a-z0-9-]/g, "")}-[a-z][a-zA-Z]*\\d+-`));
+  // Le code peut avoir été modifié à la main : nettoyé comme un SVG collé
+  const prepared = prepareSvg(serializeSvg(tree));
+  if (!prepared.tree) {
+    acc.warnings.push({ severity: "warning", message: svgIssueMessage(prepared.issues[0]), ...loc(jsx) });
+    return null;
+  }
+  for (const i of prepared.issues.filter(isRemoval)) acc.warnings.push({ severity: "warning", message: tr("SVG: {issue} (removed).", { issue: svgIssueMessage(i) }), ...loc(jsx) });
+  acc.props.markup = prepared.markup;
+  return commitNode(ctx, brick, acc);
 }
 
 function setterToId(name: string): { id: string; kind: "open" | "value" } | null {

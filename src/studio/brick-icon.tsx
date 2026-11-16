@@ -29,6 +29,8 @@ import {
   Spotlight,
   Waves,
   Frame,
+  Shapes,
+  Smile,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,6 +64,8 @@ const ICONS: Record<string, LucideIcon> = {
   Spotlight,
   Waves,
   Frame,
+  Shapes,
+  Smile,
 };
 
 export function BrickIcon({ name, className }: { name: string; className?: string }) {

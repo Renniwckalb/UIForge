@@ -3,6 +3,8 @@ import { foundationsShadcn } from "./defs/foundations";
 import { foundationsPrimitives } from "./defs/primitives";
 import { specialists } from "./defs/specialists";
 import { designed } from "./defs/designed";
+import { svgBrick } from "./defs/svg";
+import { iconBrick } from "./defs/icon";
 
 export const RAW_BRICK_ID = "raw.jsx";
 
@@ -24,7 +26,7 @@ export const rawBrick: BrickDefinition = {
   tpl: { el: "div" },
 };
 
-export const ALL_BRICKS: BrickDefinition[] = [...foundationsShadcn, ...foundationsPrimitives, ...specialists, ...designed];
+export const ALL_BRICKS: BrickDefinition[] = [...foundationsShadcn, iconBrick, svgBrick, ...foundationsPrimitives, ...specialists, ...designed];
 
 const byId = new Map<string, BrickDefinition>([...ALL_BRICKS, rawBrick].map((b) => [b.id, b]));
 const byShort = new Map<string, BrickDefinition>([...ALL_BRICKS, rawBrick].map((b) => [b.short, b]));
